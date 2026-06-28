@@ -22,14 +22,15 @@ type WebhookOutput struct {
 	}
 }
 
-// Webhook stores the raw payload in webhooks_log for later (River) processing.
+// Webhook persists the raw payload to webhooks_log and enqueues a River job to
+// process it asynchronously — both committed in a single transaction.
 func (h *Handler) Webhook(ctx context.Context, in *WebhookInput) (*WebhookOutput, error) {
 	payload := in.RawBody
 	if len(payload) == 0 {
 		payload = []byte("{}")
 	}
 
-	id, err := h.repo.InsertWebhookLog(ctx, in.Source, payload)
+	id, err := h.enqueuer.EnqueueWebhook(ctx, in.Source, payload)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to enqueue webhook", err)
 	}

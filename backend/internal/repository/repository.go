@@ -149,6 +149,35 @@ func (r *Repository) InsertWebhookLog(ctx context.Context, source string, payloa
 	return id, err
 }
 
+// WebhookLog is the minimal view a worker needs to process a queued webhook.
+type WebhookLog struct {
+	Source    string
+	Payload   []byte
+	Processed bool
+}
+
+// GetWebhookLog loads a queued webhook by id.
+func (r *Repository) GetWebhookLog(ctx context.Context, id string) (WebhookLog, error) {
+	const q = `SELECT source, payload, processed FROM webhooks_log WHERE id = $1`
+	var w WebhookLog
+	err := r.pool.QueryRow(ctx, q, id).Scan(&w.Source, &w.Payload, &w.Processed)
+	return w, err
+}
+
+// MarkWebhookProcessed flips a webhook's status and processed flag.
+func (r *Repository) MarkWebhookProcessed(ctx context.Context, id, status string) error {
+	const q = `UPDATE webhooks_log SET status = $2, processed = true, updated_at = now() WHERE id = $1`
+	_, err := r.pool.Exec(ctx, q, id, status)
+	return err
+}
+
+// RecordEvent appends a row to the events hypertable (audit / ingestion stream).
+func (r *Repository) RecordEvent(ctx context.Context, entity, entityID, kind string, payload []byte) error {
+	const q = `INSERT INTO events (entity, entity_id, kind, payload) VALUES ($1, NULLIF($2,'')::uuid, $3, $4)`
+	_, err := r.pool.Exec(ctx, q, entity, entityID, kind, payload)
+	return err
+}
+
 // CreateMagicToken issues a single-use login token valid for ttl.
 func (r *Repository) CreateMagicToken(ctx context.Context, email string, ttl time.Duration) (string, time.Time, error) {
 	buf := make([]byte, 32)

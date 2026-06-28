@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -17,9 +18,16 @@ type userContextKey struct{}
 // bearerSecurity marks an operation as requiring a valid bearer JWT.
 var bearerSecurity = []map[string][]string{{"bearerAuth": {}}}
 
+// WebhookEnqueuer persists a raw webhook payload and queues it for async
+// processing, returning the new webhooks_log id.
+type WebhookEnqueuer interface {
+	EnqueueWebhook(ctx context.Context, source string, payload []byte) (string, error)
+}
+
 // Handler holds dependencies shared by every operation.
 type Handler struct {
 	repo       *repository.Repository
+	enqueuer   WebhookEnqueuer
 	jwtSecret  string
 	production bool
 	logger     *slog.Logger
@@ -28,8 +36,8 @@ type Handler struct {
 
 // New constructs a Handler. When production is true, sensitive stub behaviour
 // (e.g. returning the magic-login token in the response) is disabled.
-func New(repo *repository.Repository, jwtSecret string, production bool, logger *slog.Logger) *Handler {
-	return &Handler{repo: repo, jwtSecret: jwtSecret, production: production, logger: logger}
+func New(repo *repository.Repository, enqueuer WebhookEnqueuer, jwtSecret string, production bool, logger *slog.Logger) *Handler {
+	return &Handler{repo: repo, enqueuer: enqueuer, jwtSecret: jwtSecret, production: production, logger: logger}
 }
 
 // Register wires every P0 operation onto the Huma API and installs the JWT

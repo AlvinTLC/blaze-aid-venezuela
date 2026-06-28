@@ -43,5 +43,16 @@ services:
       redis:
         condition: service_healthy
 
+  worker:
+    build: .
+    entrypoint: ["/worker"]
+    environment:
+      DATABASE_URL: "postgres://blazeaid:blazeaid@postgres:5432/blazeaid?sslmode=disable"
+      REDIS_URL: "redis://redis:6379/0"
+      ENV: "development"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   pgdata:

@@ -42,10 +42,18 @@ func newAPI(t *testing.T) humatest.TestAPI {
 		t.Fatalf("truncate: %v", err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := handler.New(repository.New(pool), testSecret, false, logger)
+	h := handler.New(repository.New(pool), fakeEnqueuer{}, testSecret, false, logger)
 	_, api := humatest.New(t)
 	h.Register(api)
 	return api
+}
+
+// fakeEnqueuer satisfies handler.WebhookEnqueuer without a River dependency; the
+// real enqueue→process flow is covered by the jobs package integration test.
+type fakeEnqueuer struct{}
+
+func (fakeEnqueuer) EnqueueWebhook(_ context.Context, _ string, _ []byte) (string, error) {
+	return "00000000-0000-0000-0000-000000000000", nil
 }
 
 // bearer returns an "Authorization: Bearer <jwt>" header line for humatest.

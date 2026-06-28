@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/handler"
+	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/jobs"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/repository"
 )
 
@@ -31,6 +32,15 @@ func Run(ctx context.Context, logger *slog.Logger) error {
 	defer pool.Close()
 
 	repo := repository.New(pool)
+
+	// River schema + insert-only client for enqueueing webhook jobs.
+	if err := jobs.Migrate(ctx, pool); err != nil {
+		return err
+	}
+	enqueuer, err := jobs.NewEnqueuer(pool)
+	if err != nil {
+		return err
+	}
 
 	router := chi.NewMux()
 	router.Use(middleware.RequestID)
@@ -59,7 +69,7 @@ func Run(ctx context.Context, logger *slog.Logger) error {
 	}
 	api := humachi.New(router, humaConfig)
 
-	h := handler.New(repo, cfg.JWTSecret, cfg.IsProduction(), logger)
+	h := handler.New(repo, enqueuer, cfg.JWTSecret, cfg.IsProduction(), logger)
 	h.Register(api)
 
 	srv := &http.Server{

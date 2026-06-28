@@ -9,11 +9,14 @@ Go 1.23 · [Huma v2](https://huma.rocks) (chi adapter) · pgx/pgxpool · Postgre
 ## Layout
 
 ```
-cmd/api               entrypoint
+cmd/api               HTTP API entrypoint (enqueues webhook jobs)
+cmd/worker            River worker entrypoint (processes webhook jobs)
 internal/server       config + HTTP wiring
 internal/domain/*     aidproject, resource, missing, volunteer, sync models
 internal/handler      Huma operation handlers (ingest, sync, webhook, auth)
 internal/repository   pgx data-access layer
+internal/jobs         River job args, workers, migration + transactional enqueuer
+internal/auth         session JWT issue/verify
 migrations            SQL schema (auto-applied on first DB boot)
 ```
 
@@ -59,6 +62,23 @@ go run ./cmd/api
 All ingest endpoints are **idempotent**, keyed by `(source, external_id)`.
 `/sync` uses an `updated_at` cursor; pass the returned `cursor` as the next `since`.
 
+### Async webhook processing (River)
+
+`POST /webhook/{source}` does not process inline. It writes the raw payload to
+`webhooks_log` and enqueues a River job **in the same transaction** (exactly-once,
+no orphaned work), returning `202 queued`. The `worker` service then routes the
+payload to its typed table by the payload's `entity` field
+(`project|resource|missing|volunteer`), records a row in the `events` hypertable,
+and marks the webhook processed. Unknown/unparseable payloads are logged as
+`unrouted` (not a failure); real DB errors are retried by River's default backoff.
+
+```jsonc
+// POST /api/v1/webhook/redcross
+{ "entity": "missing", "external_id": "rc-42", "full_name": "Maria Lopez", "last_seen_region": "Vargas" }
+```
+
+`docker compose up` starts both `api` and `worker` against the same Postgres.
+
 ### Auth flow
 
 1. `POST /api/v1/magic-login {email}` → mints a single-use magic token (returned
@@ -92,7 +112,7 @@ This is a beta skeleton. Known limitations, tracked for hardening:
 
 ## Notes / TODO (beyond P0)
 
-- Wire River for async processing of `webhooks_log` rows.
-- Per-provider webhook signature verification.
+- Per-provider webhook signature verification (HMAC) on `/webhook/{source}`.
+- `GET /admin/jobs` for River job monitoring (retryable/discarded).
 - Add embedding generation (pgvector column already provisioned).
 - Use the `events` hypertable for ingestion metrics / time-series queries.
