@@ -8,9 +8,10 @@ services:
       POSTGRES_DB: blazeaid
     ports:
       - "${PG_PORT:-5432}:5432"
+    # Schema is applied by the app's embedded migrator on boot (internal/migrate),
+    # so no initdb.d mount — this matches managed-Postgres deploys.
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U blazeaid -d blazeaid"]
       interval: 5s

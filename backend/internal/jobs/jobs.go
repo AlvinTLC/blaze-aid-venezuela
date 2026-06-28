@@ -15,9 +15,27 @@ import (
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/repository"
 )
 
+// riverMigrateLockKey serializes River migrations across concurrent api/worker
+// boots (River's migrator has no internal locking). Distinct from the app key.
+const riverMigrateLockKey int64 = 947563022
+
 // Migrate creates/updates River's own tables (river_job, river_leader, ...).
-// Idempotent; safe to call from both the api and worker on boot.
+// Idempotent and safe to call concurrently from api and worker: a Postgres
+// advisory lock ensures only one instance migrates at a time.
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", riverMigrateLockKey); err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = conn.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", riverMigrateLockKey)
+	}()
+
 	migrator, err := rivermigrate.New(riverpgxv5.New(pool), nil)
 	if err != nil {
 		return err

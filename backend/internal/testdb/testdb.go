@@ -1,27 +1,38 @@
-// Package testdb provides an ephemeral PostgreSQL (TimescaleDB + pgvector) with
-// the BlazeAid schema applied, for integration tests. It uses testcontainers-go,
-// falling back to TEST_DATABASE_URL when set (e.g. CI without a Docker daemon).
+// Package testdb provides an ephemeral PostgreSQL (TimescaleDB + pgvector) for
+// integration tests. New applies the real embedded migrator (same path as boot);
+// NewBare returns an empty database. Falls back to TEST_DATABASE_URL when set.
 package testdb
 
 import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/migrate"
+	"github.com/AlvinTLC/blaze-aid-venezuela/backend/migrations"
 )
 
-// New returns a ready-to-use pool plus a cleanup func that closes the pool and
-// terminates the container (no-op terminate when using TEST_DATABASE_URL).
+// New returns a pool with the full schema applied via the embedded migrator.
 func New(ctx context.Context) (*pgxpool.Pool, func(), error) {
+	pool, cleanup, err := NewBare(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := migrate.Run(ctx, pool, migrations.FS); err != nil {
+		cleanup()
+		return nil, nil, fmt.Errorf("apply migrations: %w", err)
+	}
+	return pool, cleanup, nil
+}
+
+// NewBare returns a pool to an empty database (no schema applied).
+func NewBare(ctx context.Context) (*pgxpool.Pool, func(), error) {
 	if url := os.Getenv("TEST_DATABASE_URL"); url != "" {
 		pool, err := pgxpool.New(ctx, url)
 		if err != nil {
@@ -30,22 +41,14 @@ func New(ctx context.Context) (*pgxpool.Pool, func(), error) {
 		return pool, func() { pool.Close() }, nil
 	}
 
-	// Explicit cleanup below; the reaper is unnecessary and can be blocked in
-	// constrained sandboxes.
 	if _, ok := os.LookupEnv("TESTCONTAINERS_RYUK_DISABLED"); !ok {
 		_ = os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
-	}
-
-	migrations, err := migrationFiles()
-	if err != nil {
-		return nil, nil, err
 	}
 
 	ctr, err := postgres.Run(ctx, "timescale/timescaledb-ha:pg16",
 		postgres.WithDatabase("blazeaid"),
 		postgres.WithUsername("blazeaid"),
 		postgres.WithPassword("blazeaid"),
-		postgres.WithInitScripts(migrations...),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
@@ -80,23 +83,4 @@ func Truncate(ctx context.Context, pool *pgxpool.Pool) error {
 	_, err := pool.Exec(ctx,
 		`TRUNCATE aid_projects, resources, missing_persons, volunteers, webhooks_log, events, magic_tokens`)
 	return err
-}
-
-// migrationFiles returns every migrations/*.sql in lexical order, resolved
-// relative to this source file so it works from any package's test.
-func migrationFiles() ([]string, error) {
-	_, thisFile, _, _ := runtime.Caller(0)
-	dir := filepath.Join(filepath.Dir(thisFile), "..", "..", "migrations")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	var files []string
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
-			files = append(files, filepath.Join(dir, e.Name()))
-		}
-	}
-	sort.Strings(files)
-	return files, nil
 }

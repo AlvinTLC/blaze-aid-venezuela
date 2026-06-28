@@ -11,8 +11,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/jobs"
+	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/migrate"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/repository"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/server"
+	"github.com/AlvinTLC/blaze-aid-venezuela/backend/migrations"
 )
 
 func main() {
@@ -36,6 +38,9 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 	defer pool.Close()
 
+	if err := migrate.Run(ctx, pool, migrations.FS); err != nil {
+		return err
+	}
 	if err := jobs.Migrate(ctx, pool); err != nil {
 		return err
 	}

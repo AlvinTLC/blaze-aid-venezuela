@@ -16,7 +16,9 @@ import (
 
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/handler"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/jobs"
+	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/migrate"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/repository"
+	"github.com/AlvinTLC/blaze-aid-venezuela/backend/migrations"
 )
 
 // Run wires the dependency graph and serves until ctx is cancelled.
@@ -34,7 +36,10 @@ func Run(ctx context.Context, logger *slog.Logger) error {
 
 	repo := repository.New(pool)
 
-	// River schema + insert-only client for enqueueing webhook jobs.
+	// Apply the app schema (embedded), then River's own schema. Both idempotent.
+	if err := migrate.Run(ctx, pool, migrations.FS); err != nil {
+		return err
+	}
 	if err := jobs.Migrate(ctx, pool); err != nil {
 		return err
 	}

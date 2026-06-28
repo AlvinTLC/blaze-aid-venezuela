@@ -107,6 +107,14 @@ and marks the webhook processed. Unknown/unparseable payloads are logged as
    HS256 **session JWT** (`access_token`, 24h TTL).
 3. Call protected endpoints with `Authorization: Bearer <access_token>`.
 
+## Migrations
+
+The schema is **embedded in the binary** (`//go:embed migrations/*.sql`) and applied
+on boot by `internal/migrate` (tracked in `schema_migrations`, serialized with a
+Postgres advisory lock, idempotent). Both `api` and `worker` self-migrate, so a
+**managed Postgres** (Neon/Supabase/RDS) needs no manual setup or initdb scripts.
+River's own tables are migrated the same way on boot.
+
 ## Data model
 
 Typed entity tables (`aid_projects`, `resources`, `missing_persons`, `volunteers`)
