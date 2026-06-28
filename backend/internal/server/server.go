@@ -61,6 +61,8 @@ func Run(ctx context.Context, logger *slog.Logger) error {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
+	router.Use(rateLimit(cfg.RateLimitRPM))
+	router.Use(bodyLimit(cfg.MaxBodyBytes))
 
 	// Liveness/readiness probe (outside the OpenAPI surface).
 	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {

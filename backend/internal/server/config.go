@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -14,8 +15,10 @@ type Config struct {
 	Addr        string
 	DatabaseURL string
 	RedisURL    string
-	JWTSecret   string
-	CORSOrigins []string
+	JWTSecret    string
+	CORSOrigins  []string
+	RateLimitRPM int
+	MaxBodyBytes int64
 }
 
 // LoadConfig reads configuration from the environment with dev-friendly defaults.
@@ -25,9 +28,21 @@ func LoadConfig() Config {
 		Addr:        env("ADDR", ":8080"),
 		DatabaseURL: env("DATABASE_URL", "postgres://blazeaid:blazeaid@localhost:5432/blazeaid?sslmode=disable"),
 		RedisURL:    env("REDIS_URL", "redis://localhost:6379/0"),
-		JWTSecret:   env("JWT_SECRET", defaultJWTSecret),
-		CORSOrigins: splitCSV(env("CORS_ORIGINS", "*")),
+		JWTSecret:    env("JWT_SECRET", defaultJWTSecret),
+		CORSOrigins:  splitCSV(env("CORS_ORIGINS", "*")),
+		RateLimitRPM: envInt("RATE_LIMIT_RPM", 100),
+		MaxBodyBytes: int64(envInt("MAX_BODY_BYTES", 1<<20)), // 1 MiB
 	}
+}
+
+// envInt reads an integer env var, falling back to def on missing/invalid.
+func envInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
 }
 
 // splitCSV parses a comma-separated env value into a trimmed, non-empty slice.

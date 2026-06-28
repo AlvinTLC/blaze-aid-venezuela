@@ -137,6 +137,9 @@ This is a beta skeleton. Known limitations, tracked for hardening:
   strong `JWT_SECRET` and real DB credentials via the environment.
 - **Webhook payloads are stored verbatim** as `jsonb`; validate/sanitize per
   source when wiring real processing.
+- **Rate limiting + body cap** protect the public surface: per-IP limit
+  (`RATE_LIMIT_RPM`, default 100/min → 429) and request body size cap
+  (`MAX_BODY_BYTES`, default 1 MiB → 413). Set either to 0 to disable.
 
 ## Notes / TODO (beyond P0)
 
