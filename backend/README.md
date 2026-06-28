@@ -45,16 +45,27 @@ go run ./cmd/api
 
 | Method | Path                  | Purpose                                  |
 |--------|-----------------------|------------------------------------------|
-| POST   | `/ingest/project`     | Upsert an aid project                    |
-| POST   | `/ingest/resource`    | Upsert a resource                        |
-| POST   | `/ingest/missing`     | Upsert a missing-person report           |
-| POST   | `/ingest/volunteer`   | Upsert a volunteer                       |
-| GET    | `/sync?since=&limit=` | Pull entity changes after a cursor       |
-| POST   | `/webhook/{source}`   | Accept a raw inbound payload (queued)    |
-| POST   | `/magic-login`        | Issue a passwordless login token         |
+| Method | Path                  | Auth   | Purpose                                |
+|--------|-----------------------|--------|----------------------------------------|
+| POST   | `/ingest/project`     | Bearer | Upsert an aid project                  |
+| POST   | `/ingest/resource`    | Bearer | Upsert a resource                      |
+| POST   | `/ingest/missing`     | Bearer | Upsert a missing-person report         |
+| POST   | `/ingest/volunteer`   | Bearer | Upsert a volunteer                     |
+| GET    | `/sync?since=&limit=` | public | Pull entity changes after a cursor     |
+| POST   | `/webhook/{source}`   | public | Accept a raw inbound payload (queued)  |
+| POST   | `/magic-login`        | public | Issue a passwordless login token       |
+| POST   | `/auth/verify`        | public | Exchange a magic token for a session JWT |
 
 All ingest endpoints are **idempotent**, keyed by `(source, external_id)`.
 `/sync` uses an `updated_at` cursor; pass the returned `cursor` as the next `since`.
+
+### Auth flow
+
+1. `POST /api/v1/magic-login {email}` → mints a single-use magic token (returned
+   in the body in dev; emailed in production).
+2. `POST /api/v1/auth/verify {token}` → burns the magic token and returns a signed
+   HS256 **session JWT** (`access_token`, 24h TTL).
+3. Call protected endpoints with `Authorization: Bearer <access_token>`.
 
 ## Data model
 
@@ -67,11 +78,12 @@ inbound payloads. `events` is a **TimescaleDB hypertable** (partitioned by
 
 This is a beta skeleton. Known limitations, tracked for hardening:
 
-- **Ingest endpoints are unauthenticated.** P0 accepts open ingestion; add an API
-  key / signed-source check before exposing publicly.
-- **`magic-login` is a stub.** It returns the token in the response body **only in
-  non-production**. With `ENV=production` the token is suppressed and must be
-  delivered out-of-band (email); a `/auth/verify` consumer is still TODO.
+- **Ingest endpoints require a Bearer JWT** (HS256, signed with `JWT_SECRET`).
+  `/sync` and `/webhook/{source}` remain public; webhook source authentication
+  (signatures per provider) is a separate task.
+- **`magic-login` is a stub delivery.** It returns the token in the response body
+  **only in non-production**; with `ENV=production` the token is suppressed and
+  must be delivered out-of-band (email). The token is consumed by `/auth/verify`.
 - **No default secrets in prod.** The app refuses to boot when `ENV=production`
   and `JWT_SECRET` is the development default (`config.Validate`). Always set a
   strong `JWT_SECRET` and real DB credentials via the environment.
@@ -81,6 +93,6 @@ This is a beta skeleton. Known limitations, tracked for hardening:
 ## Notes / TODO (beyond P0)
 
 - Wire River for async processing of `webhooks_log` rows.
-- Implement `/auth/verify` to consume magic tokens and issue a session JWT.
+- Per-provider webhook signature verification.
 - Add embedding generation (pgvector column already provisioned).
 - Use the `events` hypertable for ingestion metrics / time-series queries.

@@ -50,6 +50,13 @@ func Run(ctx context.Context, logger *slog.Logger) error {
 
 	humaConfig := huma.DefaultConfig("BlazeAid Hub API", "0.1.0-beta1")
 	humaConfig.Info.Description = "Unified open-source platform for post-earthquake tech aid in Venezuela."
+	humaConfig.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
+		"bearerAuth": {
+			Type:         "http",
+			Scheme:       "bearer",
+			BearerFormat: "JWT",
+		},
+	}
 	api := humachi.New(router, humaConfig)
 
 	h := handler.New(repo, cfg.JWTSecret, cfg.IsProduction(), logger)

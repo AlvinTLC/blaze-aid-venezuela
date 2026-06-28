@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/domain/aidproject"
@@ -14,6 +16,9 @@ import (
 	syncdom "github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/domain/sync"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/domain/volunteer"
 )
+
+// ErrInvalidToken is returned when a magic token is unknown, already used, or expired.
+var ErrInvalidToken = errors.New("invalid, used, or expired magic token")
 
 // Repository is a thin data-access layer over a pgx connection pool.
 type Repository struct {
@@ -158,6 +163,21 @@ func (r *Repository) CreateMagicToken(ctx context.Context, email string, ttl tim
 		return "", time.Time{}, err
 	}
 	return token, expiresAt, nil
+}
+
+// ConsumeMagicToken atomically validates and burns a magic token, returning the
+// bound email. Returns ErrInvalidToken if it is unknown, already used, or expired.
+func (r *Repository) ConsumeMagicToken(ctx context.Context, token string) (string, error) {
+	const q = `
+UPDATE magic_tokens SET used = true
+WHERE token = $1 AND used = false AND expires_at > now()
+RETURNING email`
+	var email string
+	err := r.pool.QueryRow(ctx, q, token).Scan(&email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrInvalidToken
+	}
+	return email, err
 }
 
 // Ping verifies database connectivity.
