@@ -96,6 +96,14 @@ func (h *Handler) Register(api huma.API) {
 		Tags:        []string{"sync"},
 	}, h.Sync)
 
+	huma.Register(api, huma.Operation{
+		OperationID: "stats",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/stats",
+		Summary:     "Aggregate dashboard stats",
+		Tags:        []string{"stats"},
+	}, h.Stats)
+
 	// Public catalog reads (list + detail) for the frontend.
 	huma.Register(api, huma.Operation{
 		OperationID: "list-projects", Method: http.MethodGet, Path: "/api/v1/projects",

@@ -66,6 +66,7 @@ go run ./cmd/api
 | POST   | `/ingest/resource`    | Bearer | Upsert a resource                      |
 | POST   | `/ingest/missing`     | Bearer | Upsert a missing-person report         |
 | POST   | `/ingest/volunteer`   | Bearer | Upsert a volunteer                     |
+| GET    | `/stats`              | public | Aggregate dashboard data (counts, breakdowns, recent, timeline) |
 | GET    | `/sync?since=&limit=` | public | Pull entity changes after a cursor     |
 | POST   | `/webhook/{source}`   | public | Accept a raw inbound payload (queued)  |
 | POST   | `/magic-login`        | public | Issue a passwordless login token       |
