@@ -1,0 +1,61 @@
+# Production compose (self-hosted / VPS). For a managed Postgres (Neon/Supabase/
+# RDS), delete the `postgres` service and point DATABASE_URL at the managed host.
+#
+# Required env (e.g. an .env file next to this, NOT committed):
+#   POSTGRES_PASSWORD, DATABASE_URL, JWT_SECRET, CORS_ORIGINS, APP_BASE_URL,
+#   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, SMTP_TLS
+# The app refuses to boot in production with the default JWT secret.
+
+services:
+  postgres:
+    image: timescale/timescaledb-ha:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: blazeaid
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: blazeaid
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blazeaid -d blazeaid"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: ${IMAGE:-harbor.blaze.do/blaze-aid-backend:latest}
+    restart: unless-stopped
+    environment:
+      ENV: production
+      ADDR: ":8080"
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET:?set a strong JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS to the frontend origin}
+      APP_BASE_URL: ${APP_BASE_URL:-}
+      RATE_LIMIT_RPM: ${RATE_LIMIT_RPM:-100}
+      MAX_BODY_BYTES: ${MAX_BODY_BYTES:-1048576}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_TLS: ${SMTP_TLS:-true}
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    image: ${IMAGE:-harbor.blaze.do/blaze-aid-backend:latest}
+    entrypoint: ["/worker"]
+    restart: unless-stopped
+    environment:
+      ENV: production
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
