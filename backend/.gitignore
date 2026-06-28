@@ -1,0 +1,17 @@
+# Binaries
+/out/
+/api
+*.exe
+
+# Env / secrets
+.env
+
+# Go
+*.test
+*.out
+vendor/
+
+# Editor
+.idea/
+.vscode/
+.DS_Store
