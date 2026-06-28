@@ -36,11 +36,22 @@ type MagicLoginOutput struct {
 	}
 }
 
-// MagicLogin mints a single-use token bound to the supplied email.
+// MagicLogin mints a single-use token bound to the supplied email and emails the
+// magic link. In non-production the token is also returned for testing.
 func (h *Handler) MagicLogin(ctx context.Context, in *MagicLoginInput) (*MagicLoginOutput, error) {
 	token, expiresAt, err := h.repo.CreateMagicToken(ctx, in.Body.Email, magicTokenTTL)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to issue magic token", err)
+	}
+
+	link := h.baseURL + "/auth/verify?token=" + token
+	html, text := magicLinkEmail(link)
+	if err := h.email.Send(ctx, in.Body.Email, "Tu acceso a BlazeAid Hub", html, text); err != nil {
+		h.logger.Error("failed to send magic-login email", "err", err)
+		if h.production {
+			// In prod the email is the only delivery channel; surface the failure.
+			return nil, huma.Error502BadGateway("could not send login email")
+		}
 	}
 
 	out := &MagicLoginOutput{}
@@ -49,9 +60,21 @@ func (h *Handler) MagicLogin(ctx context.Context, in *MagicLoginInput) (*MagicLo
 		// Dev/beta only: expose the token so clients can test the flow.
 		out.Body.Token = token
 		out.Body.ExpiresAt = expiresAt
-		out.Body.MagicLink = "/auth/verify?token=" + token
+		out.Body.MagicLink = link
 	}
 	return out, nil
+}
+
+// magicLinkEmail renders the HTML + plaintext bodies for the login email.
+func magicLinkEmail(link string) (html, text string) {
+	html = `<!doctype html><html><body style="font-family:sans-serif">
+<h2>BlazeAid Hub</h2>
+<p>Toca el botón para iniciar sesión. El enlace caduca en 15 minutos.</p>
+<p><a href="` + link + `" style="display:inline-block;padding:12px 20px;background:#c1121f;color:#fff;text-decoration:none;border-radius:6px">Iniciar sesión</a></p>
+<p>Si el botón no funciona, copia este enlace:<br>` + link + `</p>
+</body></html>`
+	text = "BlazeAid Hub\n\nInicia sesión con este enlace (caduca en 15 minutos):\n" + link + "\n"
+	return html, text
 }
 
 // AuthVerifyInput carries the magic token to exchange for a session JWT.

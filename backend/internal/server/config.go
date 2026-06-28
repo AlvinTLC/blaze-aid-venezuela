@@ -19,6 +19,13 @@ type Config struct {
 	CORSOrigins  []string
 	RateLimitRPM int
 	MaxBodyBytes int64
+	AppBaseURL   string
+	SMTPHost     string
+	SMTPPort     string
+	SMTPUser     string
+	SMTPPass     string
+	SMTPFrom     string
+	SMTPTLS      bool
 }
 
 // LoadConfig reads configuration from the environment with dev-friendly defaults.
@@ -32,6 +39,25 @@ func LoadConfig() Config {
 		CORSOrigins:  splitCSV(env("CORS_ORIGINS", "*")),
 		RateLimitRPM: envInt("RATE_LIMIT_RPM", 100),
 		MaxBodyBytes: int64(envInt("MAX_BODY_BYTES", 1<<20)), // 1 MiB
+		AppBaseURL:   env("APP_BASE_URL", ""),
+		SMTPHost:     env("SMTP_HOST", ""),
+		SMTPPort:     env("SMTP_PORT", ""),
+		SMTPUser:     env("SMTP_USER", ""),
+		SMTPPass:     env("SMTP_PASS", ""),
+		SMTPFrom:     env("SMTP_FROM", ""),
+		SMTPTLS:      envBool("SMTP_TLS", false),
+	}
+}
+
+// envBool reads a boolean env var ("true"/"1"); falls back to def.
+func envBool(key string, def bool) bool {
+	switch strings.ToLower(os.Getenv(key)) {
+	case "true", "1", "yes":
+		return true
+	case "false", "0", "no":
+		return false
+	default:
+		return def
 	}
 }
 

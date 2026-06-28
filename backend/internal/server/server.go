@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/email"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/handler"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/jobs"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/migrate"
@@ -85,7 +86,12 @@ func Run(ctx context.Context, logger *slog.Logger) error {
 	}
 	api := humachi.New(router, humaConfig)
 
-	h := handler.New(repo, enqueuer, cfg.JWTSecret, cfg.IsProduction(), logger)
+	sender := email.New(email.Config{
+		Host: cfg.SMTPHost, Port: cfg.SMTPPort, User: cfg.SMTPUser,
+		Pass: cfg.SMTPPass, From: cfg.SMTPFrom, TLS: cfg.SMTPTLS,
+	}, logger)
+
+	h := handler.New(repo, enqueuer, sender, cfg.AppBaseURL, cfg.JWTSecret, cfg.IsProduction(), logger)
 	h.Register(api)
 
 	srv := &http.Server{

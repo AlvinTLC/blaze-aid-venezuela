@@ -9,6 +9,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/auth"
+	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/email"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/repository"
 )
 
@@ -28,6 +29,8 @@ type WebhookEnqueuer interface {
 type Handler struct {
 	repo       *repository.Repository
 	enqueuer   WebhookEnqueuer
+	email      email.EmailSender
+	baseURL    string
 	jwtSecret  string
 	production bool
 	logger     *slog.Logger
@@ -35,9 +38,10 @@ type Handler struct {
 }
 
 // New constructs a Handler. When production is true, sensitive stub behaviour
-// (e.g. returning the magic-login token in the response) is disabled.
-func New(repo *repository.Repository, enqueuer WebhookEnqueuer, jwtSecret string, production bool, logger *slog.Logger) *Handler {
-	return &Handler{repo: repo, enqueuer: enqueuer, jwtSecret: jwtSecret, production: production, logger: logger}
+// (e.g. returning the magic-login token in the response) is disabled. baseURL is
+// prefixed to magic links in outgoing email (empty = relative link).
+func New(repo *repository.Repository, enqueuer WebhookEnqueuer, sender email.EmailSender, baseURL, jwtSecret string, production bool, logger *slog.Logger) *Handler {
+	return &Handler{repo: repo, enqueuer: enqueuer, email: sender, baseURL: baseURL, jwtSecret: jwtSecret, production: production, logger: logger}
 }
 
 // Register wires every P0 operation onto the Huma API and installs the JWT

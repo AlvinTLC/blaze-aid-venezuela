@@ -43,7 +43,7 @@ func newAPI(t *testing.T) humatest.TestAPI {
 		t.Fatalf("truncate: %v", err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	h := handler.New(repository.New(pool), fakeEnqueuer{}, testSecret, false, logger)
+	h := handler.New(repository.New(pool), fakeEnqueuer{}, noopSender{}, "", testSecret, false, logger)
 	_, api := humatest.New(t)
 	h.Register(api)
 	return api
@@ -55,6 +55,21 @@ type fakeEnqueuer struct{}
 
 func (fakeEnqueuer) EnqueueWebhook(_ context.Context, _ string, _ []byte) (string, error) {
 	return "00000000-0000-0000-0000-000000000000", nil
+}
+
+// noopSender / captureSender are test doubles for email.EmailSender.
+type noopSender struct{}
+
+func (noopSender) Send(_ context.Context, _, _, _, _ string) error { return nil }
+
+type captureSender struct {
+	to, subject, html, text string
+	calls                   int
+}
+
+func (c *captureSender) Send(_ context.Context, to, subject, html, text string) error {
+	c.to, c.subject, c.html, c.text, c.calls = to, subject, html, text, c.calls+1
+	return nil
 }
 
 // bearer returns an "Authorization: Bearer <jwt>" header line for humatest.
@@ -223,6 +238,33 @@ func TestGetProject_HTTP_404(t *testing.T) {
 	resp := api.Get("/api/v1/projects/00000000-0000-0000-0000-000000000000")
 	if resp.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", resp.Code, resp.Body.String())
+	}
+}
+
+// magic-login must send an email containing the verify link to the user.
+func TestMagicLogin_SendsEmail(t *testing.T) {
+	if err := testdb.Truncate(context.Background(), pool); err != nil {
+		t.Fatal(err)
+	}
+	sender := &captureSender{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h := handler.New(repository.New(pool), fakeEnqueuer{}, sender, "https://blazeaid.app", testSecret, false, logger)
+	_, api := humatest.New(t)
+	h.Register(api)
+
+	resp := api.Post("/api/v1/magic-login", map[string]any{"email": "vol@example.org"})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+	if sender.calls != 1 {
+		t.Fatalf("expected exactly 1 email sent, got %d", sender.calls)
+	}
+	if sender.to != "vol@example.org" {
+		t.Fatalf("email sent to wrong address: %q", sender.to)
+	}
+	if !contains(sender.html, "https://blazeaid.app/auth/verify?token=") ||
+		!contains(sender.text, "https://blazeaid.app/auth/verify?token=") {
+		t.Fatalf("email missing absolute verify link; html=%q text=%q", sender.html, sender.text)
 	}
 }
 

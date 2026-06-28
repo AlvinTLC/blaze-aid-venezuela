@@ -129,9 +129,11 @@ This is a beta skeleton. Known limitations, tracked for hardening:
 - **Ingest endpoints require a Bearer JWT** (HS256, signed with `JWT_SECRET`).
   `/sync` and `/webhook/{source}` remain public; webhook source authentication
   (signatures per provider) is a separate task.
-- **`magic-login` is a stub delivery.** It returns the token in the response body
-  **only in non-production**; with `ENV=production` the token is suppressed and
-  must be delivered out-of-band (email). The token is consumed by `/auth/verify`.
+- **`magic-login` emails the link** via SMTP (`SMTP_HOST/PORT/USER/PASS/FROM/TLS`,
+  `APP_BASE_URL` for the absolute link). With `SMTP_HOST` unset it logs the link
+  instead of sending (dev). The token is returned in the response body only in
+  non-production; in production it is delivered solely by email. Consumed by
+  `/auth/verify`.
 - **No default secrets in prod.** The app refuses to boot when `ENV=production`
   and `JWT_SECRET` is the development default (`config.Validate`). Always set a
   strong `JWT_SECRET` and real DB credentials via the environment.
