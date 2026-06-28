@@ -92,6 +92,43 @@ func (h *Handler) Register(api huma.API) {
 		Tags:        []string{"sync"},
 	}, h.Sync)
 
+	// Public catalog reads (list + detail) for the frontend.
+	huma.Register(api, huma.Operation{
+		OperationID: "list-projects", Method: http.MethodGet, Path: "/api/v1/projects",
+		Summary: "List aid projects", Tags: []string{"projects"},
+	}, h.ListProjects)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-project", Method: http.MethodGet, Path: "/api/v1/projects/{id}",
+		Summary: "Get an aid project by id", Tags: []string{"projects"},
+	}, h.GetProject)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-resources", Method: http.MethodGet, Path: "/api/v1/resources",
+		Summary: "List resources", Tags: []string{"resources"},
+	}, h.ListResources)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-resource", Method: http.MethodGet, Path: "/api/v1/resources/{id}",
+		Summary: "Get a resource by id", Tags: []string{"resources"},
+	}, h.GetResource)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-missing", Method: http.MethodGet, Path: "/api/v1/missing",
+		Summary: "List missing-person reports", Tags: []string{"missing"},
+	}, h.ListMissing)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-missing", Method: http.MethodGet, Path: "/api/v1/missing/{id}",
+		Summary: "Get a missing-person report by id", Tags: []string{"missing"},
+	}, h.GetMissing)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-volunteers", Method: http.MethodGet, Path: "/api/v1/volunteers",
+		Summary: "List volunteers", Tags: []string{"volunteers"},
+	}, h.ListVolunteers)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-volunteer", Method: http.MethodGet, Path: "/api/v1/volunteers/{id}",
+		Summary: "Get a volunteer by id", Tags: []string{"volunteers"},
+	}, h.GetVolunteer)
+
 	// Public ingestion from external systems (source auth handled separately).
 	huma.Register(api, huma.Operation{
 		OperationID:   "webhook",

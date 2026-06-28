@@ -20,6 +20,34 @@ import (
 // ErrInvalidToken is returned when a magic token is unknown, already used, or expired.
 var ErrInvalidToken = errors.New("invalid, used, or expired magic token")
 
+// ErrNotFound is returned by Get* methods when no row matches the id.
+var ErrNotFound = errors.New("not found")
+
+// ListParams holds the pagination + common filter inputs for list queries.
+type ListParams struct {
+	Region string
+	Status string
+	Extra  string // category (projects) | type (resources) | skill (volunteers)
+	Q      string // free-text match
+	Limit  int
+	Offset int
+}
+
+func (p ListParams) clamp() (limit, offset int) {
+	limit = p.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	offset = p.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	return limit, offset
+}
+
 // Repository is a thin data-access layer over a pgx connection pool.
 type Repository struct {
 	pool *pgxpool.Pool

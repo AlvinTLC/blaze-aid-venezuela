@@ -15,6 +15,7 @@ type Config struct {
 	DatabaseURL string
 	RedisURL    string
 	JWTSecret   string
+	CORSOrigins []string
 }
 
 // LoadConfig reads configuration from the environment with dev-friendly defaults.
@@ -25,7 +26,23 @@ func LoadConfig() Config {
 		DatabaseURL: env("DATABASE_URL", "postgres://blazeaid:blazeaid@localhost:5432/blazeaid?sslmode=disable"),
 		RedisURL:    env("REDIS_URL", "redis://localhost:6379/0"),
 		JWTSecret:   env("JWT_SECRET", defaultJWTSecret),
+		CORSOrigins: splitCSV(env("CORS_ORIGINS", "*")),
 	}
+}
+
+// splitCSV parses a comma-separated env value into a trimmed, non-empty slice.
+func splitCSV(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return []string{"*"}
+	}
+	return out
 }
 
 // IsProduction reports whether the service runs in a production-like environment.

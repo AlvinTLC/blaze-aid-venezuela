@@ -48,8 +48,16 @@ go run ./cmd/api
 
 | Method | Path                  | Purpose                                  |
 |--------|-----------------------|------------------------------------------|
-| Method | Path                  | Auth   | Purpose                                |
-|--------|-----------------------|--------|----------------------------------------|
+| Method | Path                                  | Auth   | Purpose                                |
+|--------|---------------------------------------|--------|----------------------------------------|
+| GET    | `/projects?region=&status=&category=&q=&limit=&offset=` | public | List aid projects |
+| GET    | `/projects/{id}`                      | public | Get an aid project |
+| GET    | `/resources?region=&status=&type=&q=&limit=&offset=`    | public | List resources |
+| GET    | `/resources/{id}`                     | public | Get a resource |
+| GET    | `/missing?region=&status=&q=&limit=&offset=`            | public | List missing-person reports |
+| GET    | `/missing/{id}`                       | public | Get a missing-person report |
+| GET    | `/volunteers?region=&status=&skill=&q=&limit=&offset=`  | public | List volunteers |
+| GET    | `/volunteers/{id}`                    | public | Get a volunteer |
 | POST   | `/ingest/project`     | Bearer | Upsert an aid project                  |
 | POST   | `/ingest/resource`    | Bearer | Upsert a resource                      |
 | POST   | `/ingest/missing`     | Bearer | Upsert a missing-person report         |
@@ -58,6 +66,11 @@ go run ./cmd/api
 | POST   | `/webhook/{source}`   | public | Accept a raw inbound payload (queued)  |
 | POST   | `/magic-login`        | public | Issue a passwordless login token       |
 | POST   | `/auth/verify`        | public | Exchange a magic token for a session JWT |
+
+List endpoints return `{ items, total, limit, offset }` (`limit` default 20, max
+100). Filters: `region`, `status`, an entity-specific facet (`category`/`type`/
+`skill`), and `q` (free-text). **CORS** is enabled for browser clients; set
+allowed origins via `CORS_ORIGINS` (comma-separated; defaults to `*` in dev).
 
 All ingest endpoints are **idempotent**, keyed by `(source, external_id)`.
 `/sync` uses an `updated_at` cursor; pass the returned `cursor` as the next `since`.

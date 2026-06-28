@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/auth"
+	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/domain/aidproject"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/handler"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/repository"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/testdb"
@@ -193,6 +194,35 @@ func TestMagicLogin_DevExposesToken(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("expected token persisted, found %d", count)
+	}
+}
+
+// Public list endpoint returns matching items and a total (no auth required).
+func TestListProjects_HTTP(t *testing.T) {
+	api := newAPI(t)
+	ctx := context.Background()
+	if _, err := repository.New(pool).UpsertProject(ctx, aidproject.AidProject{
+		Source: "s", ExternalID: "h1", Title: "Mesh Caracas", Region: "DC",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := api.Get("/api/v1/projects?region=DC")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+	body := resp.Body.String()
+	if !contains(body, "\"total\":1") || !contains(body, "h1") {
+		t.Fatalf("expected one DC project in body, got %s", body)
+	}
+}
+
+// Unknown id on a detail endpoint returns 404.
+func TestGetProject_HTTP_404(t *testing.T) {
+	api := newAPI(t)
+	resp := api.Get("/api/v1/projects/00000000-0000-0000-0000-000000000000")
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", resp.Code, resp.Body.String())
 	}
 }
 
