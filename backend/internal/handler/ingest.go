@@ -108,6 +108,8 @@ type MissingInput struct {
 		Age            *int       `json:"age,omitempty"`
 		Description    string     `json:"description,omitempty"`
 		LastSeenRegion string     `json:"last_seen_region,omitempty"`
+		Lat            *float64   `json:"lat,omitempty"`
+		Lng            *float64   `json:"lng,omitempty"`
 		LastSeenAt     *time.Time `json:"last_seen_at,omitempty"`
 		Status         string     `json:"status,omitempty"`
 		Contact        string     `json:"contact,omitempty"`
@@ -123,6 +125,8 @@ func (h *Handler) IngestMissing(ctx context.Context, in *MissingInput) (*ingestO
 		Age:            in.Body.Age,
 		Description:    in.Body.Description,
 		LastSeenRegion: in.Body.LastSeenRegion,
+		Lat:            in.Body.Lat,
+		Lng:            in.Body.Lng,
 		LastSeenAt:     in.Body.LastSeenAt,
 		Status:         in.Body.Status,
 		Contact:        in.Body.Contact,

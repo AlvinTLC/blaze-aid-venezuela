@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -56,6 +57,37 @@ func (w *whereBuilder) arrayContains(col, val string) {
 	w.conds = append(w.conds, fmt.Sprintf("$%d = ANY(%s)", len(w.args), col))
 }
 
+// tsRange adds created_at >= from and/or <= to.
+func (w *whereBuilder) tsRange(col string, from, to *time.Time) {
+	if from != nil {
+		w.args = append(w.args, *from)
+		w.conds = append(w.conds, fmt.Sprintf("%s >= $%d", col, len(w.args)))
+	}
+	if to != nil {
+		w.args = append(w.args, *to)
+		w.conds = append(w.conds, fmt.Sprintf("%s <= $%d", col, len(w.args)))
+	}
+}
+
+// nearMe filters rows within radiusKm of (lat,lng) using the haversine formula
+// (no PostGIS needed). Rows without coordinates are excluded.
+func (w *whereBuilder) nearMe(latCol, lngCol string, lat, lng *float64, radiusKm float64) {
+	if lat == nil || lng == nil || radiusKm <= 0 {
+		return
+	}
+	w.args = append(w.args, *lat)
+	a := len(w.args)
+	w.args = append(w.args, *lng)
+	b := len(w.args)
+	w.args = append(w.args, radiusKm)
+	r := len(w.args)
+	w.conds = append(w.conds, fmt.Sprintf(
+		"(%s IS NOT NULL AND %s IS NOT NULL AND 6371 * acos(LEAST(1, "+
+			"cos(radians($%d))*cos(radians(%s))*cos(radians(%s)-radians($%d))"+
+			"+sin(radians($%d))*sin(radians(%s)))) <= $%d)",
+		latCol, lngCol, a, latCol, lngCol, b, a, latCol, r))
+}
+
 func (w *whereBuilder) clause() string {
 	if len(w.conds) == 0 {
 		return ""
@@ -71,6 +103,7 @@ func (r *Repository) ListProjects(ctx context.Context, p ListParams) ([]aidproje
 	w.eq("status", p.Status)
 	w.eq("category", p.Extra)
 	w.ilikeAny(p.Q, "title", "description")
+	w.tsRange("created_at", p.From, p.To)
 
 	var total int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM aid_projects`+w.clause(), w.args...).Scan(&total); err != nil {
@@ -122,6 +155,7 @@ func (r *Repository) ListResources(ctx context.Context, p ListParams) ([]resourc
 	w.eq("status", p.Status)
 	w.eq("type", p.Extra)
 	w.ilikeAny(p.Q, "name", "type")
+	w.tsRange("created_at", p.From, p.To)
 
 	var total int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM resources`+w.clause(), w.args...).Scan(&total); err != nil {
@@ -172,6 +206,8 @@ func (r *Repository) ListMissing(ctx context.Context, p ListParams) ([]missing.P
 	w.eq("last_seen_region", p.Region)
 	w.eq("status", p.Status)
 	w.ilikeAny(p.Q, "full_name", "description")
+	w.tsRange("created_at", p.From, p.To)
+	w.nearMe("lat", "lng", p.Lat, p.Lng, p.RadiusKm)
 
 	var total int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM missing_persons`+w.clause(), w.args...).Scan(&total); err != nil {
@@ -179,7 +215,7 @@ func (r *Repository) ListMissing(ctx context.Context, p ListParams) ([]missing.P
 	}
 
 	limit, offset := p.clamp()
-	q := `SELECT id, source, external_id, full_name, age, description, last_seen_region, last_seen_at,
+	q := `SELECT id, source, external_id, full_name, age, description, last_seen_region, lat, lng, last_seen_at,
 	             status, contact, photo_url, created_at, updated_at
 	      FROM missing_persons` + w.clause() +
 		fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d OFFSET $%d", len(w.args)+1, len(w.args)+2)
@@ -194,7 +230,7 @@ func (r *Repository) ListMissing(ctx context.Context, p ListParams) ([]missing.P
 	for rows.Next() {
 		var m missing.Person
 		if err := rows.Scan(&m.ID, &m.Source, &m.ExternalID, &m.FullName, &m.Age, &m.Description,
-			&m.LastSeenRegion, &m.LastSeenAt, &m.Status, &m.Contact, &m.PhotoURL, &m.CreatedAt, &m.UpdatedAt); err != nil {
+			&m.LastSeenRegion, &m.Lat, &m.Lng, &m.LastSeenAt, &m.Status, &m.Contact, &m.PhotoURL, &m.CreatedAt, &m.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		items = append(items, m)
@@ -203,12 +239,12 @@ func (r *Repository) ListMissing(ctx context.Context, p ListParams) ([]missing.P
 }
 
 func (r *Repository) GetMissing(ctx context.Context, id string) (missing.Person, error) {
-	const q = `SELECT id, source, external_id, full_name, age, description, last_seen_region, last_seen_at,
+	const q = `SELECT id, source, external_id, full_name, age, description, last_seen_region, lat, lng, last_seen_at,
 	                  status, contact, photo_url, created_at, updated_at
 	           FROM missing_persons WHERE id = $1 AND deleted_at IS NULL`
 	var m missing.Person
 	err := r.pool.QueryRow(ctx, q, id).Scan(&m.ID, &m.Source, &m.ExternalID, &m.FullName, &m.Age, &m.Description,
-		&m.LastSeenRegion, &m.LastSeenAt, &m.Status, &m.Contact, &m.PhotoURL, &m.CreatedAt, &m.UpdatedAt)
+		&m.LastSeenRegion, &m.Lat, &m.Lng, &m.LastSeenAt, &m.Status, &m.Contact, &m.PhotoURL, &m.CreatedAt, &m.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return missing.Person{}, ErrNotFound
 	}
@@ -223,6 +259,7 @@ func (r *Repository) ListVolunteers(ctx context.Context, p ListParams) ([]volunt
 	w.eq("status", p.Status)
 	w.arrayContains("skills", p.Extra)
 	w.ilikeAny(p.Q, "full_name")
+	w.tsRange("created_at", p.From, p.To)
 
 	var total int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM volunteers`+w.clause(), w.args...).Scan(&total); err != nil {

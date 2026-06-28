@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -22,14 +23,31 @@ type ListQuery struct {
 	Region        string `query:"region" doc:"Filter by region"`
 	Status        string `query:"status" doc:"Filter by status"`
 	Q             string `query:"q" doc:"Free-text search"`
+	From          string `query:"from" doc:"created_at >= this (YYYY-MM-DD or RFC3339)"`
+	To            string `query:"to" doc:"created_at <= this (YYYY-MM-DD or RFC3339)"`
 	Limit         int    `query:"limit" default:"20" minimum:"1" maximum:"100"`
 	Offset        int    `query:"offset" default:"0" minimum:"0"`
 }
 
 func (q ListQuery) params(extra string) repository.ListParams {
 	return repository.ListParams{
-		Region: q.Region, Status: q.Status, Extra: extra, Q: q.Q, Limit: q.Limit, Offset: q.Offset,
+		Region: q.Region, Status: q.Status, Extra: extra, Q: q.Q,
+		From: parseDate(q.From), To: parseDate(q.To),
+		Limit: q.Limit, Offset: q.Offset,
 	}
+}
+
+// parseDate accepts a date (YYYY-MM-DD) or full RFC3339; returns nil if empty/invalid.
+func parseDate(s string) *time.Time {
+	if s == "" {
+		return nil
+	}
+	for _, layout := range []string{time.RFC3339, "2006-01-02"} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return &t
+		}
+	}
+	return nil
 }
 
 // authed reports whether the Authorization header carries a valid session JWT.
@@ -154,6 +172,9 @@ func (h *Handler) GetResource(ctx context.Context, in *ResourceByIDInput) (*Reso
 
 type ListMissingInput struct {
 	ListQuery
+	Lat      float64 `query:"lat" doc:"Near-me center latitude (with radius_km)"`
+	Lng      float64 `query:"lng" doc:"Near-me center longitude (with radius_km)"`
+	RadiusKm float64 `query:"radius_km" doc:"Near-me radius in km; >0 activates near-me"`
 }
 
 type ListMissingOutput struct {
@@ -167,7 +188,12 @@ type ListMissingOutput struct {
 }
 
 func (h *Handler) ListMissing(ctx context.Context, in *ListMissingInput) (*ListMissingOutput, error) {
-	items, total, err := h.repo.ListMissing(ctx, in.params(""))
+	p := in.params("")
+	if in.RadiusKm > 0 {
+		lat, lng := in.Lat, in.Lng
+		p.Lat, p.Lng, p.RadiusKm = &lat, &lng, in.RadiusKm
+	}
+	items, total, err := h.repo.ListMissing(ctx, p)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list missing persons", err)
 	}

@@ -6,8 +6,39 @@ import (
 	"testing"
 
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/domain/aidproject"
+	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/domain/missing"
 	"github.com/AlvinTLC/blaze-aid-venezuela/backend/internal/repository"
 )
+
+func fptr(f float64) *float64 { return &f }
+
+func TestListMissing_NearMe(t *testing.T) {
+	reset(t)
+	ctx := context.Background()
+	repo := repository.New(pool)
+
+	// Caracas vs Maracaibo (~430 km apart).
+	if _, err := repo.UpsertMissing(ctx, missing.Person{
+		Source: "s", ExternalID: "ccs", FullName: "Near", Lat: fptr(10.4806), Lng: fptr(-66.9036),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.UpsertMissing(ctx, missing.Person{
+		Source: "s", ExternalID: "mcbo", FullName: "Far", Lat: fptr(10.6427), Lng: fptr(-71.6125),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	items, total, err := repo.ListMissing(ctx, repository.ListParams{
+		Lat: fptr(10.48), Lng: fptr(-66.90), RadiusKm: 50,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 || len(items) != 1 || items[0].ExternalID != "ccs" {
+		t.Fatalf("near-me 50km from Caracas: expected only the Caracas row, got total=%d items=%d", total, len(items))
+	}
+}
 
 func TestListProjects_FilterPaginate(t *testing.T) {
 	reset(t)

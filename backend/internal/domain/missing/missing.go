@@ -11,6 +11,8 @@ type Person struct {
 	Age            *int       `json:"age,omitempty"`
 	Description    string     `json:"description"`
 	LastSeenRegion string     `json:"last_seen_region"`
+	Lat            *float64   `json:"lat,omitempty"`
+	Lng            *float64   `json:"lng,omitempty"`
 	LastSeenAt     *time.Time `json:"last_seen_at,omitempty"`
 	Status         string     `json:"status"`
 	Contact        string     `json:"contact"`

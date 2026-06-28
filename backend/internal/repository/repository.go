@@ -27,10 +27,16 @@ var ErrNotFound = errors.New("not found")
 type ListParams struct {
 	Region string
 	Status string
-	Extra  string // category (projects) | type (resources) | skill (volunteers)
-	Q      string // free-text match
-	Limit  int
-	Offset int
+	Extra  string     // category (projects) | type (resources) | skill (volunteers)
+	Q      string     // free-text match
+	From   *time.Time // created_at >= From
+	To     *time.Time // created_at <= To
+	// Near-me (missing only): when Lat/Lng set and RadiusKm > 0, filter by distance.
+	Lat      *float64
+	Lng      *float64
+	RadiusKm float64
+	Limit    int
+	Offset   int
 }
 
 func (p ListParams) clamp() (limit, offset int) {
@@ -104,17 +110,18 @@ RETURNING id`
 // UpsertMissing inserts or updates a missing-person report keyed by (source, external_id).
 func (r *Repository) UpsertMissing(ctx context.Context, m missing.Person) (string, error) {
 	const q = `
-INSERT INTO missing_persons (source, external_id, full_name, age, description, last_seen_region, last_seen_at, status, contact, photo_url)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+INSERT INTO missing_persons (source, external_id, full_name, age, description, last_seen_region, last_seen_at, status, contact, photo_url, lat, lng)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 ON CONFLICT (source, external_id) DO UPDATE SET
   full_name=EXCLUDED.full_name, age=EXCLUDED.age, description=EXCLUDED.description,
   last_seen_region=EXCLUDED.last_seen_region, last_seen_at=EXCLUDED.last_seen_at,
-  status=EXCLUDED.status, contact=EXCLUDED.contact, photo_url=EXCLUDED.photo_url, updated_at=now()
+  status=EXCLUDED.status, contact=EXCLUDED.contact, photo_url=EXCLUDED.photo_url,
+  lat=EXCLUDED.lat, lng=EXCLUDED.lng, updated_at=now()
 RETURNING id`
 	var id string
 	err := r.pool.QueryRow(ctx, q,
 		m.Source, m.ExternalID, m.FullName, m.Age, m.Description, m.LastSeenRegion,
-		m.LastSeenAt, orDefault(m.Status, "missing"), m.Contact, m.PhotoURL,
+		m.LastSeenAt, orDefault(m.Status, "missing"), m.Contact, m.PhotoURL, m.Lat, m.Lng,
 	).Scan(&id)
 	return id, err
 }

@@ -112,7 +112,7 @@ func (w *WebhookProcessWorker) route(ctx context.Context, args WebhookProcessArg
 		id, err := w.Repo.UpsertMissing(ctx, missing.Person{
 			Source: source, ExternalID: externalID, FullName: p.FullName, Age: p.Age,
 			Description: p.Description, LastSeenRegion: p.LastSeenRegion, Status: p.Status,
-			Contact: p.Contact, PhotoURL: p.PhotoURL,
+			Contact: p.Contact, PhotoURL: p.PhotoURL, Lat: p.Lat, Lng: p.Lng,
 		})
 		return "missing", id, err
 	case "volunteer":
