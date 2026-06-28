@@ -20,6 +20,11 @@ type whereBuilder struct {
 	args  []any
 }
 
+// newActiveWhere starts a filter that excludes soft-deleted rows.
+func newActiveWhere() *whereBuilder {
+	return &whereBuilder{conds: []string{"deleted_at IS NULL"}}
+}
+
 func (w *whereBuilder) eq(col, val string) {
 	if val == "" {
 		return
@@ -61,7 +66,7 @@ func (w *whereBuilder) clause() string {
 // ----- projects -----
 
 func (r *Repository) ListProjects(ctx context.Context, p ListParams) ([]aidproject.AidProject, int, error) {
-	w := &whereBuilder{}
+	w := newActiveWhere()
 	w.eq("region", p.Region)
 	w.eq("status", p.Status)
 	w.eq("category", p.Extra)
@@ -99,7 +104,7 @@ func (r *Repository) ListProjects(ctx context.Context, p ListParams) ([]aidproje
 func (r *Repository) GetProject(ctx context.Context, id string) (aidproject.AidProject, error) {
 	const q = `SELECT id, source, external_id, title, description, category, status, region,
 	                  lat, lng, contact, url, created_at, updated_at
-	           FROM aid_projects WHERE id = $1`
+	           FROM aid_projects WHERE id = $1 AND deleted_at IS NULL`
 	var p aidproject.AidProject
 	err := r.pool.QueryRow(ctx, q, id).Scan(&p.ID, &p.Source, &p.ExternalID, &p.Title, &p.Description,
 		&p.Category, &p.Status, &p.Region, &p.Lat, &p.Lng, &p.Contact, &p.URL, &p.CreatedAt, &p.UpdatedAt)
@@ -112,7 +117,7 @@ func (r *Repository) GetProject(ctx context.Context, id string) (aidproject.AidP
 // ----- resources -----
 
 func (r *Repository) ListResources(ctx context.Context, p ListParams) ([]resource.Resource, int, error) {
-	w := &whereBuilder{}
+	w := newActiveWhere()
 	w.eq("region", p.Region)
 	w.eq("status", p.Status)
 	w.eq("type", p.Extra)
@@ -150,7 +155,7 @@ func (r *Repository) ListResources(ctx context.Context, p ListParams) ([]resourc
 func (r *Repository) GetResource(ctx context.Context, id string) (resource.Resource, error) {
 	const q = `SELECT id, source, external_id, type, name, quantity, unit, status, region,
 	                  lat, lng, contact, created_at, updated_at
-	           FROM resources WHERE id = $1`
+	           FROM resources WHERE id = $1 AND deleted_at IS NULL`
 	var res resource.Resource
 	err := r.pool.QueryRow(ctx, q, id).Scan(&res.ID, &res.Source, &res.ExternalID, &res.Type, &res.Name,
 		&res.Quantity, &res.Unit, &res.Status, &res.Region, &res.Lat, &res.Lng, &res.Contact, &res.CreatedAt, &res.UpdatedAt)
@@ -163,7 +168,7 @@ func (r *Repository) GetResource(ctx context.Context, id string) (resource.Resou
 // ----- missing -----
 
 func (r *Repository) ListMissing(ctx context.Context, p ListParams) ([]missing.Person, int, error) {
-	w := &whereBuilder{}
+	w := newActiveWhere()
 	w.eq("last_seen_region", p.Region)
 	w.eq("status", p.Status)
 	w.ilikeAny(p.Q, "full_name", "description")
@@ -200,7 +205,7 @@ func (r *Repository) ListMissing(ctx context.Context, p ListParams) ([]missing.P
 func (r *Repository) GetMissing(ctx context.Context, id string) (missing.Person, error) {
 	const q = `SELECT id, source, external_id, full_name, age, description, last_seen_region, last_seen_at,
 	                  status, contact, photo_url, created_at, updated_at
-	           FROM missing_persons WHERE id = $1`
+	           FROM missing_persons WHERE id = $1 AND deleted_at IS NULL`
 	var m missing.Person
 	err := r.pool.QueryRow(ctx, q, id).Scan(&m.ID, &m.Source, &m.ExternalID, &m.FullName, &m.Age, &m.Description,
 		&m.LastSeenRegion, &m.LastSeenAt, &m.Status, &m.Contact, &m.PhotoURL, &m.CreatedAt, &m.UpdatedAt)
@@ -213,7 +218,7 @@ func (r *Repository) GetMissing(ctx context.Context, id string) (missing.Person,
 // ----- volunteers -----
 
 func (r *Repository) ListVolunteers(ctx context.Context, p ListParams) ([]volunteer.Volunteer, int, error) {
-	w := &whereBuilder{}
+	w := newActiveWhere()
 	w.eq("region", p.Region)
 	w.eq("status", p.Status)
 	w.arrayContains("skills", p.Extra)
@@ -251,7 +256,7 @@ func (r *Repository) ListVolunteers(ctx context.Context, p ListParams) ([]volunt
 func (r *Repository) GetVolunteer(ctx context.Context, id string) (volunteer.Volunteer, error) {
 	const q = `SELECT id, source, external_id, full_name, skills, availability, region, contact, status,
 	                  created_at, updated_at
-	           FROM volunteers WHERE id = $1`
+	           FROM volunteers WHERE id = $1 AND deleted_at IS NULL`
 	var v volunteer.Volunteer
 	err := r.pool.QueryRow(ctx, q, id).Scan(&v.ID, &v.Source, &v.ExternalID, &v.FullName, &v.Skills,
 		&v.Availability, &v.Region, &v.Contact, &v.Status, &v.CreatedAt, &v.UpdatedAt)

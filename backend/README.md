@@ -58,6 +58,8 @@ go run ./cmd/api
 | GET    | `/missing/{id}`                       | public | Get a missing-person report |
 | GET    | `/volunteers?region=&status=&skill=&q=&limit=&offset=`  | public | List volunteers |
 | GET    | `/volunteers/{id}`                    | public | Get a volunteer |
+| PATCH  | `/{entity}/{id}`      | Bearer | Partial update (projects/resources/missing/volunteers) |
+| DELETE | `/{entity}/{id}`      | Bearer | Soft-delete (sets `deleted_at`; 204)   |
 | POST   | `/ingest/project`     | Bearer | Upsert an aid project                  |
 | POST   | `/ingest/resource`    | Bearer | Upsert a resource                      |
 | POST   | `/ingest/missing`     | Bearer | Upsert a missing-person report         |
@@ -67,10 +69,15 @@ go run ./cmd/api
 | POST   | `/magic-login`        | public | Issue a passwordless login token       |
 | POST   | `/auth/verify`        | public | Exchange a magic token for a session JWT |
 
-List endpoints return `{ items, total, limit, offset }` (`limit` default 20, max
-100). Filters: `region`, `status`, an entity-specific facet (`category`/`type`/
-`skill`), and `q` (free-text). **CORS** is enabled for browser clients; set
+List endpoints return `{ items, total, limit, offset, page }` (`limit` default 20,
+max 100). Filters: `region`, `status`, an entity-specific facet (`category`/
+`type`/`skill`), and `q` (free-text). **CORS** is enabled for browser clients; set
 allowed origins via `CORS_ORIGINS` (comma-separated; defaults to `*` in dev).
+
+**PII gating:** the `contact` field is hidden on anonymous reads and returned only
+when a valid `Authorization: Bearer <jwt>` is present. Soft-deleted rows
+(`deleted_at` set) are excluded from all reads. Mutations (PATCH/DELETE) require a
+bearer token. Role/owner-scoped PII is a future step (needs a users table).
 
 All ingest endpoints are **idempotent**, keyed by `(source, external_id)`.
 `/sync` uses an `updated_at` cursor; pass the returned `cursor` as the next `since`.

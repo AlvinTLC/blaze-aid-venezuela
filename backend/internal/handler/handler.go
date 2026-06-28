@@ -129,6 +129,47 @@ func (h *Handler) Register(api huma.API) {
 		Summary: "Get a volunteer by id", Tags: []string{"volunteers"},
 	}, h.GetVolunteer)
 
+	// Mutations (Bearer): partial update + soft delete.
+	huma.Register(api, huma.Operation{
+		OperationID: "patch-project", Method: http.MethodPatch, Path: "/api/v1/projects/{id}",
+		Summary: "Update an aid project", Tags: []string{"projects"}, Security: bearerSecurity,
+	}, h.PatchProject)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-project", Method: http.MethodDelete, Path: "/api/v1/projects/{id}",
+		Summary: "Soft-delete an aid project", Tags: []string{"projects"}, Security: bearerSecurity,
+		DefaultStatus: http.StatusNoContent,
+	}, h.DeleteProject)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "patch-resource", Method: http.MethodPatch, Path: "/api/v1/resources/{id}",
+		Summary: "Update a resource", Tags: []string{"resources"}, Security: bearerSecurity,
+	}, h.PatchResource)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-resource", Method: http.MethodDelete, Path: "/api/v1/resources/{id}",
+		Summary: "Soft-delete a resource", Tags: []string{"resources"}, Security: bearerSecurity,
+		DefaultStatus: http.StatusNoContent,
+	}, h.DeleteResource)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "patch-missing", Method: http.MethodPatch, Path: "/api/v1/missing/{id}",
+		Summary: "Update a missing-person report", Tags: []string{"missing"}, Security: bearerSecurity,
+	}, h.PatchMissing)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-missing", Method: http.MethodDelete, Path: "/api/v1/missing/{id}",
+		Summary: "Soft-delete a missing-person report", Tags: []string{"missing"}, Security: bearerSecurity,
+		DefaultStatus: http.StatusNoContent,
+	}, h.DeleteMissing)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "patch-volunteer", Method: http.MethodPatch, Path: "/api/v1/volunteers/{id}",
+		Summary: "Update a volunteer", Tags: []string{"volunteers"}, Security: bearerSecurity,
+	}, h.PatchVolunteer)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-volunteer", Method: http.MethodDelete, Path: "/api/v1/volunteers/{id}",
+		Summary: "Soft-delete a volunteer", Tags: []string{"volunteers"}, Security: bearerSecurity,
+		DefaultStatus: http.StatusNoContent,
+	}, h.DeleteVolunteer)
+
 	// Public ingestion from external systems (source auth handled separately).
 	huma.Register(api, huma.Operation{
 		OperationID:   "webhook",

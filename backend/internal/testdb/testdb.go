@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -34,11 +36,16 @@ func New(ctx context.Context) (*pgxpool.Pool, func(), error) {
 		_ = os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 	}
 
+	migrations, err := migrationFiles()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	ctr, err := postgres.Run(ctx, "timescale/timescaledb-ha:pg16",
 		postgres.WithDatabase("blazeaid"),
 		postgres.WithUsername("blazeaid"),
 		postgres.WithPassword("blazeaid"),
-		postgres.WithInitScripts(migrationPath()),
+		postgres.WithInitScripts(migrations...),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
@@ -75,9 +82,21 @@ func Truncate(ctx context.Context, pool *pgxpool.Pool) error {
 	return err
 }
 
-// migrationPath resolves migrations/001_init.sql relative to this source file so
-// it works regardless of which package's test invokes New.
-func migrationPath() string {
+// migrationFiles returns every migrations/*.sql in lexical order, resolved
+// relative to this source file so it works from any package's test.
+func migrationFiles() ([]string, error) {
 	_, thisFile, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(thisFile), "..", "..", "migrations", "001_init.sql")
+	dir := filepath.Join(filepath.Dir(thisFile), "..", "..", "migrations")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
+			files = append(files, filepath.Join(dir, e.Name()))
+		}
+	}
+	sort.Strings(files)
+	return files, nil
 }
