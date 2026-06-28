@@ -44,6 +44,31 @@ func TestPatchProject(t *testing.T) {
 	}
 }
 
+// PUT replaces the full record (and requires auth).
+func TestPutProject(t *testing.T) {
+	api := newAPI(t)
+	id := seedProject(t)
+
+	resp := api.Put("/api/v1/projects/"+id, bearer(t, "admin@blazeaid"),
+		map[string]any{"title": "Replaced", "region": "Vargas", "status": "closed"})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	got, err := repository.New(pool).GetProject(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "Replaced" || got.Region != "Vargas" || got.Status != "closed" {
+		t.Fatalf("PUT did not replace fields: %+v", got)
+	}
+
+	noauth := api.Put("/api/v1/projects/"+id, map[string]any{"title": "x"})
+	if noauth.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without token, got %d", noauth.Code)
+	}
+}
+
 func TestPatchProject_RequiresAuth(t *testing.T) {
 	api := newAPI(t)
 	id := seedProject(t)

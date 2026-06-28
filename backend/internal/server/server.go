@@ -56,7 +56,7 @@ func Run(ctx context.Context, logger *slog.Logger) error {
 	router.Use(middleware.Timeout(30 * time.Second))
 	router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORSOrigins,
-		AllowedMethods:   []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 		ExposedHeaders:   []string{"Content-Type"},
 		AllowCredentials: false,

@@ -141,7 +141,24 @@ func (h *Handler) Register(api huma.API) {
 		Summary: "Get a volunteer by id", Tags: []string{"volunteers"},
 	}, h.GetVolunteer)
 
-	// Mutations (Bearer): partial update + soft delete.
+	// Mutations (Bearer): full update (PUT), partial update (PATCH), soft delete.
+	huma.Register(api, huma.Operation{
+		OperationID: "put-project", Method: http.MethodPut, Path: "/api/v1/projects/{id}",
+		Summary: "Replace an aid project", Tags: []string{"projects"}, Security: bearerSecurity,
+	}, h.PutProject)
+	huma.Register(api, huma.Operation{
+		OperationID: "put-resource", Method: http.MethodPut, Path: "/api/v1/resources/{id}",
+		Summary: "Replace a resource", Tags: []string{"resources"}, Security: bearerSecurity,
+	}, h.PutResource)
+	huma.Register(api, huma.Operation{
+		OperationID: "put-missing", Method: http.MethodPut, Path: "/api/v1/missing/{id}",
+		Summary: "Replace a missing-person report", Tags: []string{"missing"}, Security: bearerSecurity,
+	}, h.PutMissing)
+	huma.Register(api, huma.Operation{
+		OperationID: "put-volunteer", Method: http.MethodPut, Path: "/api/v1/volunteers/{id}",
+		Summary: "Replace a volunteer", Tags: []string{"volunteers"}, Security: bearerSecurity,
+	}, h.PutVolunteer)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "patch-project", Method: http.MethodPatch, Path: "/api/v1/projects/{id}",
 		Summary: "Update an aid project", Tags: []string{"projects"}, Security: bearerSecurity,
