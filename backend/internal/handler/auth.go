@@ -17,13 +17,18 @@ type MagicLoginInput struct {
 }
 
 // MagicLoginOutput returns the issued token.
-// NOTE: for P0/beta we return the token directly; production must instead
-// email the link and never expose the token in the response body.
+//
+// SECURITY: returning the token in the response body is a development/beta
+// convenience that lets anyone who can POST an email mint a usable login token
+// (account-takeover risk). It is therefore suppressed when ENV=production, where
+// the token must instead be delivered out-of-band (email). Fields are omitempty
+// so the production response carries only the acknowledgement.
 type MagicLoginOutput struct {
 	Body struct {
-		Token     string    `json:"token"`
-		ExpiresAt time.Time `json:"expires_at"`
-		MagicLink string    `json:"magic_link"`
+		Status    string    `json:"status"`
+		Token     string    `json:"token,omitempty"`
+		ExpiresAt time.Time `json:"expires_at,omitempty"`
+		MagicLink string    `json:"magic_link,omitempty"`
 	}
 }
 
@@ -35,8 +40,12 @@ func (h *Handler) MagicLogin(ctx context.Context, in *MagicLoginInput) (*MagicLo
 	}
 
 	out := &MagicLoginOutput{}
-	out.Body.Token = token
-	out.Body.ExpiresAt = expiresAt
-	out.Body.MagicLink = "/auth/verify?token=" + token
+	out.Body.Status = "sent"
+	if !h.production {
+		// Dev/beta only: expose the token so clients can test the flow.
+		out.Body.Token = token
+		out.Body.ExpiresAt = expiresAt
+		out.Body.MagicLink = "/auth/verify?token=" + token
+	}
 	return out, nil
 }

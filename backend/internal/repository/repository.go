@@ -136,9 +136,9 @@ LIMIT $2`
 	return changes, rows.Err()
 }
 
-// InsertRawEvent stores a raw inbound webhook payload for async processing.
-func (r *Repository) InsertRawEvent(ctx context.Context, source string, payload []byte) (string, error) {
-	const q = `INSERT INTO raw_events (source, payload) VALUES ($1, $2) RETURNING id`
+// InsertWebhookLog stores a raw inbound webhook payload for async processing.
+func (r *Repository) InsertWebhookLog(ctx context.Context, source string, payload []byte) (string, error) {
+	const q = `INSERT INTO webhooks_log (source, payload) VALUES ($1, $2) RETURNING id`
 	var id string
 	err := r.pool.QueryRow(ctx, q, source, payload).Scan(&id)
 	return id, err

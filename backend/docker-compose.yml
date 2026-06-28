@@ -1,15 +1,13 @@
 services:
   postgres:
-    # pgvector + uuid-ossp out of the box. Swap for timescale/timescaledb-ha:pg16
-    # once TimescaleDB hypertables are needed (then enable the extension in 001_init.sql).
-    image: pgvector/pgvector:pg16
+    # TimescaleDB + pgvector bundled. Honors POSTGRES_* env and initdb.d.
+    image: timescale/timescaledb-ha:pg16
     environment:
       POSTGRES_USER: blazeaid
       POSTGRES_PASSWORD: blazeaid
       POSTGRES_DB: blazeaid
-    # Not published to the host by default (avoids clashing with a local Postgres).
-    # Use `docker compose exec postgres psql -U blazeaid -d blazeaid`, or add a
-    # `ports: ["5432:5432"]` override locally if you need direct host access.
+    ports:
+      - "${PG_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d:ro
@@ -21,7 +19,13 @@ services:
 
   redis:
     image: redis:7-alpine
-    # Internal-only; reachable by the api over the compose network as redis:6379.
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   api:
     build: .
@@ -30,10 +34,13 @@ services:
       DATABASE_URL: "postgres://blazeaid:blazeaid@postgres:5432/blazeaid?sslmode=disable"
       REDIS_URL: "redis://redis:6379/0"
       JWT_SECRET: "dev-insecure-secret-change-me"
+      ENV: "development"
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:

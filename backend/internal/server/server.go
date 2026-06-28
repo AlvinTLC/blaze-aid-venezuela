@@ -20,6 +20,9 @@ import (
 // Run wires the dependency graph and serves until ctx is cancelled.
 func Run(ctx context.Context, logger *slog.Logger) error {
 	cfg := LoadConfig()
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
 
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -49,7 +52,7 @@ func Run(ctx context.Context, logger *slog.Logger) error {
 	humaConfig.Info.Description = "Unified open-source platform for post-earthquake tech aid in Venezuela."
 	api := humachi.New(router, humaConfig)
 
-	h := handler.New(repo, cfg.JWTSecret, logger)
+	h := handler.New(repo, cfg.JWTSecret, cfg.IsProduction(), logger)
 	h.Register(api)
 
 	srv := &http.Server{

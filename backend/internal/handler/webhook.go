@@ -22,14 +22,14 @@ type WebhookOutput struct {
 	}
 }
 
-// Webhook stores the raw payload in raw_events for later (River) processing.
+// Webhook stores the raw payload in webhooks_log for later (River) processing.
 func (h *Handler) Webhook(ctx context.Context, in *WebhookInput) (*WebhookOutput, error) {
 	payload := in.RawBody
 	if len(payload) == 0 {
 		payload = []byte("{}")
 	}
 
-	id, err := h.repo.InsertRawEvent(ctx, in.Source, payload)
+	id, err := h.repo.InsertWebhookLog(ctx, in.Source, payload)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to enqueue webhook", err)
 	}

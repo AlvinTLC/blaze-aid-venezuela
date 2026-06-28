@@ -1,14 +1,13 @@
 -- 001_init.sql — BlazeAid Hub initial schema (P0)
--- Stack: Postgres + TimescaleDB + pgvector. Idempotent.
+-- Stack: PostgreSQL + TimescaleDB + pgvector. Idempotent; auto-applied on first boot.
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS timescaledb;
 CREATE EXTENSION IF NOT EXISTS vector;
--- TimescaleDB is optional for P0; uncomment when the image provides it.
--- CREATE EXTENSION IF NOT EXISTS timescaledb;
+-- gen_random_uuid() is built into PostgreSQL core (>=13); no uuid-ossp needed.
 
 -- Tech / relief projects aggregated into the hub.
 CREATE TABLE IF NOT EXISTS aid_projects (
-    id          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     source      text NOT NULL,
     external_id text NOT NULL,
     title       text NOT NULL,
@@ -28,7 +27,7 @@ CREATE TABLE IF NOT EXISTS aid_projects (
 
 -- Physical resources / supplies (water, fuel, tools, connectivity...).
 CREATE TABLE IF NOT EXISTS resources (
-    id          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     source      text NOT NULL,
     external_id text NOT NULL,
     type        text NOT NULL DEFAULT '',
@@ -47,7 +46,7 @@ CREATE TABLE IF NOT EXISTS resources (
 
 -- Missing persons reports.
 CREATE TABLE IF NOT EXISTS missing_persons (
-    id                uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     source            text NOT NULL,
     external_id       text NOT NULL,
     full_name         text NOT NULL,
@@ -65,7 +64,7 @@ CREATE TABLE IF NOT EXISTS missing_persons (
 
 -- Volunteers offering skills / time.
 CREATE TABLE IF NOT EXISTS volunteers (
-    id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     source       text NOT NULL,
     external_id  text NOT NULL,
     full_name    text NOT NULL,
@@ -80,13 +79,28 @@ CREATE TABLE IF NOT EXISTS volunteers (
 );
 
 -- Raw inbound webhook payloads, processed asynchronously (River) later.
-CREATE TABLE IF NOT EXISTS raw_events (
-    id          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS webhooks_log (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     source      text NOT NULL,
     payload     jsonb NOT NULL,
+    status      text NOT NULL DEFAULT 'queued',
     processed   boolean NOT NULL DEFAULT false,
-    received_at timestamptz NOT NULL DEFAULT now()
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    updated_at  timestamptz NOT NULL DEFAULT now()
 );
+
+-- Append-only event stream (audit / ingestion log). TimescaleDB hypertable
+-- partitioned by occurred_at. No single-column uuid PK so the partition column
+-- isn't forced into a unique constraint (a Timescale requirement).
+CREATE TABLE IF NOT EXISTS events (
+    id          uuid NOT NULL DEFAULT gen_random_uuid(),
+    entity      text NOT NULL,
+    entity_id   uuid,
+    kind        text NOT NULL DEFAULT 'ingest',
+    payload     jsonb NOT NULL DEFAULT '{}'::jsonb,
+    occurred_at timestamptz NOT NULL DEFAULT now()
+);
+SELECT create_hypertable('events', 'occurred_at', if_not_exists => TRUE);
 
 -- Passwordless magic-login tokens.
 CREATE TABLE IF NOT EXISTS magic_tokens (
@@ -102,4 +116,5 @@ CREATE INDEX IF NOT EXISTS idx_aid_projects_updated_at    ON aid_projects (updat
 CREATE INDEX IF NOT EXISTS idx_resources_updated_at       ON resources (updated_at);
 CREATE INDEX IF NOT EXISTS idx_missing_persons_updated_at ON missing_persons (updated_at);
 CREATE INDEX IF NOT EXISTS idx_volunteers_updated_at      ON volunteers (updated_at);
-CREATE INDEX IF NOT EXISTS idx_raw_events_processed       ON raw_events (processed, received_at);
+CREATE INDEX IF NOT EXISTS idx_webhooks_log_status        ON webhooks_log (status, created_at);
+CREATE INDEX IF NOT EXISTS idx_events_entity              ON events (entity, occurred_at DESC);

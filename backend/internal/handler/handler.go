@@ -11,14 +11,16 @@ import (
 
 // Handler holds dependencies shared by every operation.
 type Handler struct {
-	repo      *repository.Repository
-	jwtSecret string
-	logger    *slog.Logger
+	repo       *repository.Repository
+	jwtSecret  string
+	production bool
+	logger     *slog.Logger
 }
 
-// New constructs a Handler.
-func New(repo *repository.Repository, jwtSecret string, logger *slog.Logger) *Handler {
-	return &Handler{repo: repo, jwtSecret: jwtSecret, logger: logger}
+// New constructs a Handler. When production is true, sensitive stub behaviour
+// (e.g. returning the magic-login token in the response) is disabled.
+func New(repo *repository.Repository, jwtSecret string, production bool, logger *slog.Logger) *Handler {
+	return &Handler{repo: repo, jwtSecret: jwtSecret, production: production, logger: logger}
 }
 
 // Register wires every P0 operation onto the Huma API.
