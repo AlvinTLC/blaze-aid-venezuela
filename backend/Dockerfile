@@ -15,5 +15,7 @@ COPY --from=build /out/api /api
 COPY --from=build /out/worker /worker
 EXPOSE 8080
 USER nonroot:nonroot
-# Default entrypoint is the API; the worker service overrides it with /worker.
-ENTRYPOINT ["/api"]
+# CMD (not ENTRYPOINT) so the runtime can select the binary per process:
+# compose overrides it (entrypoint /worker) and Fly [processes] sets app=/api,
+# worker=/worker on the same image.
+CMD ["/api"]

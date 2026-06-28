@@ -1,0 +1,49 @@
+# Fly.io manifest for BlazeAid Hub backend.
+# Deploy from this directory: `fly deploy` (after `fly launch --no-deploy` once).
+# Set secrets first (NOT in this file):
+#   fly secrets set ENV=production \
+#     DATABASE_URL=postgres://...timescale-cloud...:5432/db?sslmode=require \
+#     JWT_SECRET=$(openssl rand -base64 48) \
+#     CORS_ORIGINS=https://your-frontend.app \
+#     APP_BASE_URL=https://blaze-aid-backend.fly.dev \
+#     SMTP_HOST=... SMTP_USER=... SMTP_PASS=... SMTP_FROM=...
+# NOTE: Fly Postgres is vanilla (no TimescaleDB); point DATABASE_URL at Timescale
+# Cloud (or a Fly app running timescale/timescaledb-ha) so the events hypertable works.
+
+app = "blaze-aid-backend"
+primary_region = "mia" # Miami — low latency to Venezuela
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ENV = "production"
+  ADDR = ":8080"
+  RATE_LIMIT_RPM = "100"
+  MAX_BODY_BYTES = "1048576"
+  SMTP_PORT = "587"
+  SMTP_TLS = "true"
+
+# Same image, two roles: the API serves HTTP, the worker drains the River queue.
+[processes]
+  app = "/api"
+  worker = "/worker"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "15s"
+    method = "GET"
+    path = "/healthz"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

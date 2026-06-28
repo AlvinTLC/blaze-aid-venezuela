@@ -50,13 +50,24 @@ docker compose -f docker-compose.prod.yml up -d
 curl https://your-host/healthz
 ```
 
-### Fly.io
+### Fly.io (manifest provided: `fly.toml`)
+`fly.toml` runs the API and the worker as two **processes** of the same image
+(`app = /api`, `worker = /worker`), region `mia` (close to Venezuela).
+
 ```sh
-fly launch --image harbor.blaze.do/blaze-aid-backend:latest --no-deploy
-fly secrets set ENV=production JWT_SECRET=... DATABASE_URL=... CORS_ORIGINS=... APP_BASE_URL=... SMTP_HOST=...
+cd backend
+fly launch --no-deploy --copy-config   # reuses fly.toml; pick the app name
+fly secrets set \
+  DATABASE_URL='postgres://...timescale-cloud.../db?sslmode=require' \
+  JWT_SECRET="$(openssl rand -base64 48)" \
+  CORS_ORIGINS='https://your-frontend.app' \
+  APP_BASE_URL='https://blaze-aid-backend.fly.dev' \
+  SMTP_HOST=... SMTP_USER=... SMTP_PASS=... SMTP_FROM=...
 fly deploy
-# worker as a second process/app with the same image, entrypoint /worker
+fly scale count app=1 worker=1     # ensure one of each process
 ```
+**DB:** Fly Postgres has no TimescaleDB — point `DATABASE_URL` at **Timescale
+Cloud** (or a Fly app running `timescale/timescaledb-ha`). Migrations run on boot.
 
 ### Railway / Render / EasyPanel
 - New service from the image (or the repo + `backend/Dockerfile`).
