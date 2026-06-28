@@ -67,8 +67,18 @@ func (h *Handler) Stats(ctx context.Context, _ *struct{}) (*StatsOutput, error) 
 		if byStatus[key], err = h.repo.GroupCount(ctx, table, "status"); err != nil {
 			return nil, huma.Error500InternalServerError("failed status breakdown", err)
 		}
-		if byRegion[key], err = h.repo.GroupCount(ctx, table, regionCols[key]); err != nil {
+		// by_region is region-outer for the map heatmap:
+		// { "<region>": { projects, resources, missing, volunteers, total } }.
+		regionCounts, err := h.repo.GroupCount(ctx, table, regionCols[key])
+		if err != nil {
 			return nil, huma.Error500InternalServerError("failed region breakdown", err)
+		}
+		for region, n := range regionCounts {
+			if byRegion[region] == nil {
+				byRegion[region] = map[string]int{}
+			}
+			byRegion[region][key] += n
+			byRegion[region]["total"] += n
 		}
 	}
 

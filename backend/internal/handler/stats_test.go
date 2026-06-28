@@ -40,6 +40,8 @@ func TestStats(t *testing.T) {
 	for _, want := range []string{
 		`"data"`, `"counts"`, `"projects":2`, `"resources":1`,
 		`"by_status"`, `"by_region"`, `"recent"`, `"timeline"`,
+		// by_region is region-outer: { "<region>": { ..., "total": N } }
+		`"DC"`, `"total"`,
 	} {
 		if !contains(body, want) {
 			t.Fatalf("stats body missing %q:\n%s", want, body)
