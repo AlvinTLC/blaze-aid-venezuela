@@ -135,7 +135,9 @@ This is a beta skeleton. Known limitations, tracked for hardening:
   `APP_BASE_URL` for the absolute link). With `SMTP_HOST` unset it logs the link
   instead of sending (dev). The token is returned in the response body only in
   non-production; in production it is delivered solely by email. Consumed by
-  `/auth/verify`.
+  `/auth/verify`. Use an encrypted transport in production (`SMTP_TLS=true` for
+  implicit TLS, or a STARTTLS-capable server on 587); the link carries a token.
+  The dev `LogSender` never logs the link/token (only recipient + subject).
 - **No default secrets in prod.** The app refuses to boot when `ENV=production`
   and `JWT_SECRET` is the development default (`config.Validate`). Always set a
   strong `JWT_SECRET` and real DB credentials via the environment.

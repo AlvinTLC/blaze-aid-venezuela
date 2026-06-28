@@ -49,9 +49,10 @@ func New(cfg Config, logger *slog.Logger) EmailSender {
 // LogSender logs the email instead of sending it (dev fallback).
 type LogSender struct{ logger *slog.Logger }
 
-func (s LogSender) Send(_ context.Context, to, subject, _, textBody string) error {
-	s.logger.Warn("email not delivered (SMTP unconfigured); logged instead",
-		"to", to, "subject", subject, "text", textBody)
+func (s LogSender) Send(_ context.Context, to, subject, _, _ string) error {
+	// Do NOT log the body: it carries the magic link/token. In dev the token is
+	// available via the magic-login response instead.
+	s.logger.Warn("email not delivered (SMTP unconfigured)", "to", to, "subject", subject)
 	return nil
 }
 
@@ -114,13 +115,18 @@ func (s SMTPSender) sendTLS(addr, to string, msg []byte) error {
 	return wc.Close()
 }
 
+// hdr strips CR/LF so untrusted values can't inject extra email headers.
+func hdr(v string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(v)
+}
+
 // buildMIME assembles a multipart/alternative message (plaintext + HTML).
 func buildMIME(from, to, subject, htmlBody, textBody string) []byte {
 	const boundary = "blazeaid-boundary-7f3a"
 	var b strings.Builder
-	fmt.Fprintf(&b, "From: %s\r\n", from)
-	fmt.Fprintf(&b, "To: %s\r\n", to)
-	fmt.Fprintf(&b, "Subject: %s\r\n", subject)
+	fmt.Fprintf(&b, "From: %s\r\n", hdr(from))
+	fmt.Fprintf(&b, "To: %s\r\n", hdr(to))
+	fmt.Fprintf(&b, "Subject: %s\r\n", hdr(subject))
 	b.WriteString("MIME-Version: 1.0\r\n")
 	fmt.Fprintf(&b, "Content-Type: multipart/alternative; boundary=%q\r\n\r\n", boundary)
 

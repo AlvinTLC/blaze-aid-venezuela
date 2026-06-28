@@ -30,6 +30,15 @@ func TestNew_SMTPWhenHostSet(t *testing.T) {
 	}
 }
 
+func TestBuildMIME_StripsHeaderInjection(t *testing.T) {
+	// A recipient trying to inject a Bcc header must not produce a real header
+	// line (no CRLF before "Bcc:"); the value is folded onto the To line instead.
+	msg := string(buildMIME("from@x", "victim@y\r\nBcc: attacker@evil", "Hi", "<b>h</b>", "t"))
+	if strings.Contains(msg, "\nBcc:") {
+		t.Fatalf("header injection not stripped (injected header line present):\n%s", msg)
+	}
+}
+
 func TestBuildMIME(t *testing.T) {
 	msg := string(buildMIME("from@x", "to@y", "Hi", "<b>html</b>", "plain"))
 	for _, want := range []string{
