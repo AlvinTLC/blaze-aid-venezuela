@@ -1,5 +1,7 @@
 # BlazeAid Hub — Backend
 
+[![CI](https://github.com/AlvinTLC/blaze-aid-venezuela/actions/workflows/ci.yml/badge.svg)](https://github.com/AlvinTLC/blaze-aid-venezuela/actions/workflows/ci.yml)
+
 Unified open-source platform aggregating post-earthquake tech-aid efforts in Venezuela.
 
 ## Stack

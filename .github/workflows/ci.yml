@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-build:
+    name: Test & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      # Integration tests use testcontainers against the runner's Docker daemon.
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        run: go build ./...
+
+  docker:
+    name: Docker build & push
+    needs: test-build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      HARBOR_USER: ${{ secrets.HARBOR_USERNAME }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Only log in when registry credentials are configured.
+      - name: Log in to Harbor
+        if: ${{ env.HARBOR_USER != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: harbor.blaze.do
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
+      # Build always (validates the Dockerfile); push only when creds exist.
+      - name: Build and push (distroless)
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: ${{ env.HARBOR_USER != '' }}
+          tags: |
+            harbor.blaze.do/blaze-aid-backend:latest
+            harbor.blaze.do/blaze-aid-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
