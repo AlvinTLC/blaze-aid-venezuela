@@ -11,7 +11,7 @@
 # Cloud (or a Fly app running timescale/timescaledb-ha) so the events hypertable works.
 
 app = "blaze-aid-backend"
-primary_region = "mia" # Miami — low latency to Venezuela
+primary_region = "dfw" # Dallas (mia/Miami is deprecated on Fly). bog=Bogotá is closer if available in your org.
 
 [build]
   dockerfile = "Dockerfile"
